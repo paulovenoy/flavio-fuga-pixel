@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>01: Fuga de Brasília - Missão Mar-a-Lago (Edição Turbo & Memes)</title>
+  <title>01: Fuga de Brasília - Ranking Global Real-Time</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
@@ -18,18 +18,18 @@
       
       <div class="marquee-title">
         <div class="pill-group">
-          <span class="sub-pill">🇧🇷 EDIÇÃO OFICIAL PRO &bull; 3 FASES 🇺🇸</span>
+          <span class="sub-pill pill-online" id="online-status">🟢 RANKING REAL-TIME</span>
           <span class="sub-pill pill-boss" id="boss-pill">BOSS: MARECHAL JANONES</span>
           <span class="sub-pill pill-nick" id="btn-change-nick" title="Clique para mudar seu apelido">
-            PILOTO: <strong id="display-nick">PILOTO_01</strong> ✏️
+            PILOTO: <strong id="display-nick">...</strong> ✏️
           </span>
         </div>
         <h1>01: FUGA DE BRASÍLIA</h1>
-        <p class="subtitle">MISSÃO MAR-A-LAGO &bull; "ADEUS PÁTRIA E FAMÍLIA, FUI!"</p>
+        <p class="subtitle">MISSÃO MAR-A-LAGO &bull; RANKING MUNDIAL SINCRONIZADO</p>
       </div>
 
       <div class="marquee-actions">
-        <button class="arcade-btn btn-ranking" id="btn-open-ranking" title="Ver Hall da Fama / Ranking">
+        <button class="arcade-btn btn-ranking" id="btn-open-ranking" title="Ver Ranking Global">
           <span>🏆 RANKING</span>
         </button>
         <button class="arcade-btn" id="btn-toggle-sound" title="Ligar/Desligar Som">
@@ -52,12 +52,12 @@
       <!-- Takeoff Comic Speech Bubble -->
       <div id="takeoff-bubble" class="takeoff-bubble hidden">
         <div class="bubble-content">
-          <span class="bubble-quote">"ADEUS PÁTRIA E FAMÍLIA, FUI!" 🇧🇷💨</span>
-          <span class="bubble-sub">AeroKopenhagen decolando de Brasília com destino a Mar-a-Lago!</span>
+          <span class="bubble-quote" id="takeoff-quote">"ADEUS PÁTRIA E FAMÍLIA, FUI!" 🇧🇷💨</span>
+          <span class="bubble-sub">Jato AeroKopenhagen decolando de Brasília com destino a Mar-a-Lago!</span>
         </div>
       </div>
 
-      <!-- Touch Controls (Ergonomic for Mobile) -->
+      <!-- Touch Controls (Optimized for Mobile) -->
       <div id="touch-controls" class="touch-controls">
         <div class="touch-dpad">
           <button id="touch-up" class="touch-btn">▲</button>
@@ -78,40 +78,71 @@
     <footer class="arcade-bezel">
       <div class="dashboard-panel">
         <div class="key-guide">
-          <span class="badge">W/A/S/D ou SETAS</span> Pilotar (ou Toque & Arraste no Mobile) &bull;
-          <span class="badge">SEGURE ESPAÇO</span> 🍊 Disparo Contínuo de Laranjas &bull;
+          <span class="badge">W/A/S/D ou SETAS</span> Pilotar Jatinho (ou Toque & Arraste) &bull;
+          <span class="badge">SEGURE ESPAÇO</span> 🍊 Metralhadora Contínua &bull;
           <span class="badge">SHIFT</span> Super Rachadinha Turbo 🚀 &bull;
           <span class="badge">F</span> Tela Cheia &bull;
-          <span class="badge">R</span> Ver Ranking
+          <span class="badge">R</span> Ranking Global
         </div>
         <div class="credits-tag">
-          Online Leaderboard &bull; 16-Bit Realism &bull; Edição Memes BR
+          Servidor Global Ativo &bull; Auto-Sync &bull; Edição Memes BR
         </div>
       </div>
     </footer>
   </div>
 
-  <!-- Nickname Modal -->
+  <!-- Mandatory Pre-Game Pilot Selection Modal -->
+  <div id="modal-start-name" class="arcade-modal">
+    <div class="modal-box modal-start-box">
+      <div class="terminal-badge">PASSE DE BORDO OFICIAL</div>
+      <h2>ESCOLHA SEU NOME DE PILOTO</h2>
+      <p>Digite seu apelido para disputar o <strong>Ranking Global Real-Time</strong> com todos os jogadores:</p>
+
+      <div class="input-wrapper">
+        <input type="text" id="input-start-nick" maxlength="12" placeholder="DIGITE SEU NOME" autocomplete="off" spellcheck="false" />
+      </div>
+
+      <!-- Quick Suggestion Chips -->
+      <div class="chip-container">
+        <span class="chip-label">SUGESTÕES RÁPIDAS:</span>
+        <div class="chips">
+          <button class="chip-btn" data-name="01_FLAVIO">01_FLAVIO</button>
+          <button class="chip-btn" data-name="QUEIROZ_VIP">QUEIROZ_VIP</button>
+          <button class="chip-btn" data-name="MITO_22">MITO_22</button>
+          <button class="chip-btn" data-name="PATRIOTA_77">PATRIOTA_77</button>
+          <button class="chip-btn" data-name="DANONE_HUNTER">DANONE_HUNTER</button>
+        </div>
+      </div>
+
+      <button id="btn-confirm-start" class="modal-btn btn-takeoff">
+        🚀 DECOLAR AGORA! (ADEUS PÁTRIA E FAMÍLIA)
+      </button>
+    </div>
+  </div>
+
+  <!-- Nickname Edit Modal (via marquee badge) -->
   <div id="modal-nickname" class="arcade-modal hidden">
     <div class="modal-box">
-      <h2>IDENTIFICAÇÃO DO PILOTO</h2>
-      <p>Digite seu apelido para o Ranking Oficial:</p>
-      <input type="text" id="input-nick" maxlength="12" placeholder="EX: MITO_01" autocomplete="off" />
+      <h2>ALTERAR IDENTIFICAÇÃO</h2>
+      <p>Novo apelido para as próximas pontuações no Ranking:</p>
+      <input type="text" id="input-nick" maxlength="12" placeholder="NOVO NOME" autocomplete="off" />
       <div class="modal-buttons">
-        <button id="btn-save-nick" class="modal-btn btn-confirm">SALVAR APELIDO</button>
+        <button id="btn-save-nick" class="modal-btn btn-confirm">SALVAR NOME</button>
         <button id="btn-close-nick" class="modal-btn btn-cancel">CANCELAR</button>
       </div>
     </div>
   </div>
 
-  <!-- Ranking / Leaderboard Modal -->
+  <!-- Global Real-Time Ranking Modal -->
   <div id="modal-ranking" class="arcade-modal hidden">
     <div class="modal-box modal-ranking-box">
       <div class="modal-header">
-        <h2>🏆 HALL DA FAMA & RANKING 🏆</h2>
+        <div class="modal-title-group">
+          <h2>🏆 RANKING GLOBAL REAL-TIME 🏆</h2>
+          <span class="live-indicator"><span class="ping-dot"></span> SINCRONIZADO AO VIVO COM TODOS OS JOGADORES</span>
+        </div>
         <button id="btn-close-ranking" class="modal-close">&times;</button>
       </div>
-      <p class="ranking-sub">OS MAIORES VÔOS DA HISTÓRIA DE BRASÍLIA A MAR-A-LAGO</p>
 
       <div class="ranking-table-wrapper">
         <table class="ranking-table">
@@ -122,15 +153,17 @@
               <th>PONTUAÇÃO</th>
               <th>LARANJAS</th>
               <th>FASE</th>
+              <th>STATUS</th>
             </tr>
           </thead>
           <tbody id="ranking-tbody">
-            <!-- Dynamically populated -->
+            <!-- Dynamically populated via real-time stream -->
           </tbody>
         </table>
       </div>
 
       <div class="modal-footer-ranking">
+        <button id="btn-refresh-ranking" class="modal-btn btn-refresh">🔄 ATUALIZAR AGORA</button>
         <button id="btn-share-score" class="modal-btn btn-share">📲 COMPARTILHAR MEU RECORDE</button>
         <button id="btn-back-game" class="modal-btn btn-confirm">VOLTAR AO JOGO</button>
       </div>

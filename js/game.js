@@ -1,6 +1,6 @@
 /**
- * 01: Fuga de Brasília - Missão Mar-a-Lago (Turbo & Memes Edition)
- * Core Arcade Game Engine with Continuous Auto-Fire, Online Leaderboard & Hardcore Difficulty
+ * 01: Fuga de Brasília - Missão Mar-a-Lago (Edição Real-Time Online Leaderboard)
+ * Core Arcade Game Engine with Pre-Game Name Selection, Continuous Auto-Fire & Global Real-Time Sync
  */
 
 (function () {
@@ -10,6 +10,8 @@
   const CANVAS_WIDTH = 960;
   const CANVAS_HEIGHT = 540;
   const MAX_HEALTH = 3;
+  const CLOUD_RANKING_TOPIC = "flavio-fuga-pixel-ranking-v1";
+  const CLOUD_RANKING_URL = `https://ntfy.sh/${CLOUD_RANKING_TOPIC}`;
 
   // Stage Distances
   const STAGE_CONFIG = [
@@ -44,13 +46,13 @@
     "NÃO VAI PRA DISNEY NEM PRO TRUMP!"
   ];
 
-  // Default Arcade Leaderboard Seed
+  // Default Fallback Leaderboard
   const DEFAULT_LEADERBOARD = [
-    { nick: "QUEIROZ_LARANJA", score: 99400, oranges: 82, stage: 3, date: "29/10" },
-    { nick: "ALEXANDRE_XANDAO", score: 85200, oranges: 64, stage: 3, date: "29/10" },
-    { nick: "CARLUXO_PITBULL", score: 71800, oranges: 51, stage: 2, date: "29/10" },
-    { nick: "MARECHAL_DANONE", score: 54200, oranges: 39, stage: 1, date: "29/10" },
-    { nick: "PATRIOTA_CAMINHAO", score: 42100, oranges: 28, stage: 1, date: "29/10" }
+    { nick: "QUEIROZ_01", score: 99400, oranges: 82, stage: 3, date: "29/10", isOnline: true },
+    { nick: "ALEXANDRE_X", score: 85200, oranges: 64, stage: 3, date: "29/10", isOnline: true },
+    { nick: "CARLUXO_PIT", score: 71800, oranges: 51, stage: 2, date: "29/10", isOnline: true },
+    { nick: "MARECHAL_DAN", score: 54200, oranges: 39, stage: 1, date: "29/10", isOnline: true },
+    { nick: "PATRIOTA_CAM", score: 42100, oranges: 28, stage: 1, date: "29/10", isOnline: true }
   ];
 
   // Game States
@@ -71,6 +73,7 @@
       this.screenWrapper = document.getElementById('screen-wrapper');
       this.memeToast = document.getElementById('meme-toast');
       this.takeoffBubble = document.getElementById('takeoff-bubble');
+      this.takeoffQuote = document.getElementById('takeoff-quote');
       this.soundBtn = document.getElementById('btn-toggle-sound');
       this.soundIcon = document.getElementById('sound-icon');
       this.fullscreenBtn = document.getElementById('btn-fullscreen');
@@ -78,8 +81,13 @@
       this.bossPill = document.getElementById('boss-pill');
       this.btnChangeNick = document.getElementById('btn-change-nick');
       this.displayNick = document.getElementById('display-nick');
+      this.onlineStatus = document.getElementById('online-status');
 
       // Modals
+      this.modalStartName = document.getElementById('modal-start-name');
+      this.inputStartNick = document.getElementById('input-start-nick');
+      this.btnConfirmStart = document.getElementById('btn-confirm-start');
+
       this.modalNick = document.getElementById('modal-nickname');
       this.inputNick = document.getElementById('input-nick');
       this.btnSaveNick = document.getElementById('btn-save-nick');
@@ -90,6 +98,7 @@
       this.btnCloseRanking = document.getElementById('btn-close-ranking');
       this.btnBackGame = document.getElementById('btn-back-game');
       this.btnShareScore = document.getElementById('btn-share-score');
+      this.btnRefreshRanking = document.getElementById('btn-refresh-ranking');
       this.rankingTbody = document.getElementById('ranking-tbody');
 
       this.currentState = STATE.TITLE;
@@ -99,12 +108,16 @@
       this.orangesCollected = 0;
       this.distanceInStage = 0;
 
-      // Player Nickname
-      this.playerNick = localStorage.getItem('flavio_player_nick') || 'PILOTO_01';
+      // Player Nickname (Mandatory before start)
+      this.playerNick = localStorage.getItem('flavio_player_nick') || '';
+      this.hasChosenName = false;
       this.updateNickUI();
 
-      // High score
+      // High Score
       this.highScore = parseInt(localStorage.getItem('flavio_fuga_highscore') || '0', 10);
+
+      // Global Live Leaderboard Array
+      this.leaderboard = this.loadLocalLeaderboard();
 
       // Inputs
       this.keys = {};
@@ -131,7 +144,7 @@
         flameAnim: 0
       };
 
-      // Boss: Marechal Janones Object
+      // Boss: Marechal Janones
       this.boss = {
         active: false,
         defeated: false,
@@ -149,7 +162,7 @@
         isEnraged: false
       };
 
-      // Game Collections
+      // Collections
       this.projectiles = [];
       this.enemyProjectiles = [];
       this.obstacles = [];
@@ -177,13 +190,141 @@
 
       this.initEvents();
       this.updateSoundButtonUI();
+      this.initRealtimeCloudLeaderboard();
 
       // Start loop
       requestAnimationFrame(this.loop.bind(this));
     }
 
+    // --- Real-Time Online Backend (SSE + HTTP POST via ntfy.sh) ---
+
+    initRealtimeCloudLeaderboard() {
+      // 1. Fetch cached scores on start
+      fetch(`${CLOUD_RANKING_URL}/json?poll=1`)
+        .then(res => res.text())
+        .then(text => {
+          if (!text) return;
+          const lines = text.trim().split('\n');
+          lines.forEach(line => {
+            try {
+              const msgObj = JSON.parse(line);
+              if (msgObj.message) {
+                const data = typeof msgObj.message === 'string' ? JSON.parse(msgObj.message) : msgObj.message;
+                this.mergeIntoLeaderboard(data, false);
+              }
+            } catch (err) {}
+          });
+          this.sortAndSaveLeaderboard();
+        })
+        .catch(err => {
+          console.log("Leaderboard offline cache fallback active.");
+        });
+
+      // 2. Open Real-Time SSE Stream for live updates from other players
+      try {
+        const sse = new EventSource(`${CLOUD_RANKING_URL}/sse`);
+        sse.onopen = () => {
+          if (this.onlineStatus) {
+            this.onlineStatus.textContent = "🟢 REAL-TIME ONLINE";
+            this.onlineStatus.style.background = "#047857";
+          }
+        };
+
+        sse.onmessage = (e) => {
+          try {
+            const parsed = JSON.parse(e.data);
+            if (parsed.message) {
+              const scoreObj = typeof parsed.message === 'string' ? JSON.parse(parsed.message) : parsed.message;
+              if (scoreObj && scoreObj.nick && scoreObj.score) {
+                this.mergeIntoLeaderboard(scoreObj, true);
+                if (scoreObj.nick !== this.playerNick) {
+                  this.showMemeToast(`📢 NOVO RECORDE: ${scoreObj.nick} fez ${scoreObj.score} pts!`);
+                }
+              }
+            }
+          } catch (err) {}
+        };
+
+        sse.onerror = () => {
+          if (this.onlineStatus) {
+            this.onlineStatus.textContent = "🟡 AUTO-SYNC PENDING";
+          }
+        };
+      } catch (e) {}
+    }
+
+    broadcastScore(entry) {
+      try {
+        fetch(CLOUD_RANKING_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(entry)
+        }).catch(err => {});
+      } catch (e) {}
+    }
+
+    mergeIntoLeaderboard(entry, triggerPulse = false) {
+      if (!entry.nick || !entry.score) return;
+
+      const existingIndex = this.leaderboard.findIndex(item => item.nick === entry.nick);
+      if (existingIndex >= 0) {
+        if (entry.score > this.leaderboard[existingIndex].score) {
+          this.leaderboard[existingIndex] = { ...entry, isNew: triggerPulse, isOnline: true };
+        }
+      } else {
+        this.leaderboard.push({ ...entry, isNew: triggerPulse, isOnline: true });
+      }
+
+      this.sortAndSaveLeaderboard();
+      if (this.modalRanking && !this.modalRanking.classList.contains('hidden')) {
+        this.renderRankingTable();
+      }
+    }
+
+    sortAndSaveLeaderboard() {
+      this.leaderboard.sort((a, b) => b.score - a.score);
+      this.leaderboard = this.leaderboard.slice(0, 15);
+      localStorage.setItem('flavio_leaderboard_v2', JSON.stringify(this.leaderboard));
+    }
+
+    loadLocalLeaderboard() {
+      const saved = localStorage.getItem('flavio_leaderboard_v2');
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (e) {}
+      }
+      return [...DEFAULT_LEADERBOARD];
+    }
+
     initEvents() {
-      // Keyboard Events (Holding Space now continuous fires!)
+      // Suggestion Chips Click
+      document.querySelectorAll('.chip-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const name = btn.getAttribute('data-name');
+          if (this.inputStartNick) {
+            this.inputStartNick.value = name;
+            this.inputStartNick.focus();
+          }
+        });
+      });
+
+      // Confirm Pilot Name and Start
+      if (this.btnConfirmStart) {
+        this.btnConfirmStart.addEventListener('click', () => {
+          this.confirmPilotNameAndDecolar();
+        });
+      }
+
+      if (this.inputStartNick) {
+        this.inputStartNick.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            this.confirmPilotNameAndDecolar();
+          }
+        });
+      }
+
+      // Keyboard Controls
       window.addEventListener('keydown', (e) => {
         if (window.sound) window.sound.init();
         this.keys[e.code] = true;
@@ -194,9 +335,17 @@
 
         if (e.code === 'Space') {
           this.isShooting = true;
-          if (this.currentState === STATE.TITLE) this.startStage(1);
-          else if (this.currentState === STATE.STAGE_CLEAR) this.startStage(this.currentStage + 1);
-          else if (this.currentState === STATE.GAMEOVER || this.currentState === STATE.VICTORY) this.startStage(1);
+          if (this.currentState === STATE.TITLE) {
+            if (!this.hasChosenName) {
+              this.openStartNameModal();
+            } else {
+              this.startStage(1);
+            }
+          } else if (this.currentState === STATE.STAGE_CLEAR) {
+            this.startStage(this.currentStage + 1);
+          } else if (this.currentState === STATE.GAMEOVER || this.currentState === STATE.VICTORY) {
+            this.startStage(1);
+          }
         }
 
         if (this.currentState === STATE.PLAYING) {
@@ -226,41 +375,33 @@
         });
       }
 
-      // Ranking button
-      this.btnOpenRanking.addEventListener('click', () => {
-        this.openRankingModal();
-      });
-
-      this.btnCloseRanking.addEventListener('click', () => {
-        this.closeRankingModal();
-      });
-
-      this.btnBackGame.addEventListener('click', () => {
-        this.closeRankingModal();
-      });
-
-      this.btnShareScore.addEventListener('click', () => {
-        this.shareScoreCard();
-      });
+      // Ranking modal buttons
+      this.btnOpenRanking.addEventListener('click', () => this.openRankingModal());
+      this.btnCloseRanking.addEventListener('click', () => this.closeRankingModal());
+      this.btnBackGame.addEventListener('click', () => this.closeRankingModal());
+      this.btnShareScore.addEventListener('click', () => this.shareScoreCard());
+      if (this.btnRefreshRanking) {
+        this.btnRefreshRanking.addEventListener('click', () => {
+          this.initRealtimeCloudLeaderboard();
+          this.renderRankingTable();
+          this.showMemeToast("🔄 RANKING ATUALIZADO VIA CLOUD!");
+        });
+      }
 
       // Nickname change button
-      this.btnChangeNick.addEventListener('click', () => {
-        this.openNickModal();
-      });
-
-      this.btnSaveNick.addEventListener('click', () => {
-        this.saveNick();
-      });
-
-      this.btnCloseNick.addEventListener('click', () => {
-        this.closeNickModal();
-      });
+      this.btnChangeNick.addEventListener('click', () => this.openNickModal());
+      this.btnSaveNick.addEventListener('click', () => this.saveNick());
+      this.btnCloseNick.addEventListener('click', () => this.closeNickModal());
 
       // Canvas click to advance
       this.canvas.addEventListener('click', () => {
         if (window.sound) window.sound.init();
         if (this.currentState === STATE.TITLE) {
-          this.startStage(1);
+          if (!this.hasChosenName) {
+            this.openStartNameModal();
+          } else {
+            this.startStage(1);
+          }
         } else if (this.currentState === STATE.STAGE_CLEAR) {
           this.startStage(this.currentStage + 1);
         } else if (this.currentState === STATE.GAMEOVER || this.currentState === STATE.VICTORY) {
@@ -273,14 +414,16 @@
     }
 
     setupTouchControls() {
-      // Touch shoot button now supports continuous holding!
       const shootBtn = document.getElementById('touch-shoot');
       if (shootBtn) {
         const startShoot = (e) => {
           e.preventDefault();
           if (window.sound) window.sound.init();
           this.isShooting = true;
-          if (this.currentState === STATE.TITLE) this.startStage(1);
+          if (this.currentState === STATE.TITLE) {
+            if (!this.hasChosenName) this.openStartNameModal();
+            else this.startStage(1);
+          }
           if (this.currentState === STATE.STAGE_CLEAR) this.startStage(this.currentStage + 1);
           if (this.currentState === STATE.GAMEOVER || this.currentState === STATE.VICTORY) this.startStage(1);
         };
@@ -364,11 +507,34 @@
       this.canvas.addEventListener('touchcancel', endTouch);
     }
 
-    // --- Nickname & Leaderboard Functions ---
+    // --- Pre-Game Pilot Selection Modal ---
+
+    openStartNameModal() {
+      if (!this.modalStartName) return;
+      this.inputStartNick.value = this.playerNick || '01_FLAVIO';
+      this.modalStartName.classList.remove('hidden');
+      setTimeout(() => this.inputStartNick.focus(), 100);
+    }
+
+    confirmPilotNameAndDecolar() {
+      let val = this.inputStartNick.value.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '');
+      if (val.length === 0) val = '01_FLAVIO';
+
+      this.playerNick = val.substring(0, 12);
+      this.hasChosenName = true;
+      localStorage.setItem('flavio_player_nick', this.playerNick);
+      this.updateNickUI();
+
+      if (this.modalStartName) {
+        this.modalStartName.classList.add('hidden');
+      }
+
+      this.startStage(1);
+    }
 
     updateNickUI() {
       if (this.displayNick) {
-        this.displayNick.textContent = this.playerNick;
+        this.displayNick.textContent = this.playerNick || 'ESCOLHER';
       }
     }
 
@@ -392,46 +558,14 @@
         this.playerNick = val.substring(0, 12);
         localStorage.setItem('flavio_player_nick', this.playerNick);
         this.updateNickUI();
-        this.showMemeToast(`PILOTO ATUALIZADO: ${this.playerNick}!`);
+        this.showMemeToast(`NOME ATUALIZADO: ${this.playerNick}!`);
       }
       this.closeNickModal();
     }
 
-    getLeaderboard() {
-      const saved = localStorage.getItem('flavio_leaderboard');
-      if (saved) {
-        try {
-          return JSON.parse(saved);
-        } catch (e) {}
-      }
-      return [...DEFAULT_LEADERBOARD];
-    }
-
-    saveScoreToLeaderboard() {
-      const list = this.getLeaderboard();
-      const now = new Date();
-      const dateStr = `${now.getDate()}/${now.getMonth() + 1}`;
-
-      const newEntry = {
-        nick: this.playerNick,
-        score: this.score,
-        oranges: this.orangesCollected,
-        stage: this.currentStage,
-        date: dateStr,
-        isCurrentPlayer: true
-      };
-
-      list.push(newEntry);
-      list.sort((a, b) => b.score - a.score);
-      const top10 = list.slice(0, 10);
-      localStorage.setItem('flavio_leaderboard', JSON.stringify(top10));
-      return top10;
-    }
-
     openRankingModal() {
       if (!this.modalRanking) return;
-      const list = this.getLeaderboard();
-      this.renderRankingTable(list);
+      this.renderRankingTable();
       this.modalRanking.classList.remove('hidden');
     }
 
@@ -441,31 +575,37 @@
       }
     }
 
-    renderRankingTable(list) {
+    renderRankingTable() {
       if (!this.rankingTbody) return;
       this.rankingTbody.innerHTML = '';
 
       const medals = ['🥇', '🥈', '🥉'];
-      list.forEach((item, idx) => {
+      this.leaderboard.forEach((item, idx) => {
         const tr = document.createElement('tr');
         if (item.nick === this.playerNick) {
           tr.classList.add('highlight-player');
         }
+        if (item.isNew) {
+          tr.classList.add('row-new');
+        }
 
         const medal = idx < 3 ? medals[idx] : `#${idx + 1}`;
+        const onlineTag = item.isOnline ? `<span class="badge-live">ONLINE</span>` : `<span style="color:#64748b">LOCAL</span>`;
+
         tr.innerHTML = `
           <td><strong>${medal}</strong></td>
           <td>${item.nick}</td>
           <td><strong>${item.score.toLocaleString()}</strong></td>
           <td>🍊 ${item.oranges}</td>
           <td>FASE ${item.stage}</td>
+          <td>${onlineTag}</td>
         `;
         this.rankingTbody.appendChild(tr);
       });
     }
 
     shareScoreCard() {
-      const text = `✈️ 01: Fuga de Brasília - Missão Mar-a-Lago!\nO piloto ${this.playerNick} atingiu ${this.score.toLocaleString()} pts e coletou ${this.orangesCollected} laranjas na Fase ${this.currentStage}!\nJogue agora e tente bater meu recorde: https://paulovenoy.github.io/flavio-fuga-pixel/`;
+      const text = `✈️ 01: Fuga de Brasília - Missão Mar-a-Lago!\nO piloto ${this.playerNick} atingiu ${this.score.toLocaleString()} pts e coletou ${this.orangesCollected} laranjas na Fase ${this.currentStage}!\nJogue e dispute o Ranking Global Real-Time em: https://paulovenoy.github.io/flavio-fuga-pixel/`;
       if (navigator.clipboard) {
         navigator.clipboard.writeText(text).then(() => {
           this.showMemeToast("📋 RECORDE COPIADO PARA O CLIPBOARD!");
@@ -476,7 +616,7 @@
     triggerScreenShake() {
       if (!this.screenWrapper) return;
       this.screenWrapper.classList.remove('screen-shake');
-      void this.screenWrapper.offsetWidth; // trigger reflow
+      void this.screenWrapper.offsetWidth;
       this.screenWrapper.classList.add('screen-shake');
     }
 
@@ -521,8 +661,11 @@
 
     showTakeoffBubble() {
       if (!this.takeoffBubble) return;
+      if (this.takeoffQuote) {
+        this.takeoffQuote.textContent = `"${this.playerNick}: ADEUS PÁTRIA E FAMÍLIA, FUI!" 🇧🇷💨`;
+      }
       this.takeoffBubble.classList.remove('hidden');
-      this.takeoffTimer = 210; // ~3.5 seconds
+      this.takeoffTimer = 220;
     }
 
     startStage(stageNum) {
@@ -560,7 +703,7 @@
 
       if (this.currentStage === 1) {
         this.showTakeoffBubble();
-        this.showMemeToast("🚀 'ADEUS PÁTRIA E FAMÍLIA, FUI!' 💨");
+        this.showMemeToast(`🚀 PILOTO ${this.playerNick} DECOLANDO!`);
         if (this.bossPill) this.bossPill.textContent = "BOSS: MARECHAL JANONES";
       } else if (this.currentStage === 2) {
         this.showMemeToast("🌊 FASE 2: TRAVESSIA DO ATLÂNTICO! CUIDADO COM OS RAIOS!");
@@ -577,7 +720,7 @@
       if (!this.isShooting || this.currentState !== STATE.PLAYING) return;
 
       this.shootCooldown--;
-      const fireInterval = this.player.isTurboActive ? 4 : 7; // Rapid-fire stream!
+      const fireInterval = this.player.isTurboActive ? 4 : 7;
 
       if (this.shootCooldown <= 0) {
         this.shootCooldown = fireInterval;
@@ -674,7 +817,7 @@
       });
     }
 
-    // --- Spawner Logic (Harder Difficulty) ---
+    // --- Harder Difficulty Spawners ---
 
     spawnObstacle() {
       if (this.boss.active && !this.boss.defeated) return;
@@ -682,7 +825,6 @@
       const yPos = 40 + Math.random() * (CANVAS_HEIGHT - 130);
 
       if (this.currentStage === 1) {
-        // Stage 1: Brasília (Twin laser Drones, Plunging Gavels, Tornozeleiras)
         const types = ['drone', 'gavel', 'ankle'];
         const chosen = types[Math.floor(Math.random() * types.length)];
 
@@ -722,7 +864,6 @@
           });
         }
       } else if (this.currentStage === 2) {
-        // Stage 2: Atlântico (Caças FAB, Fast Patriota trucks, Plunging Gavels)
         const types = ['fabJet', 'patriota', 'gavel'];
         const chosen = types[Math.floor(Math.random() * types.length)];
 
@@ -744,7 +885,7 @@
             y: yPos,
             w: 56,
             h: 30,
-            vx: -8.0, // High-speed trucker meme!
+            vx: -8.0,
             hp: 3
           });
         } else {
@@ -760,7 +901,6 @@
           });
         }
       } else if (this.currentStage === 3) {
-        // Stage 3: Flórida (Intense mix)
         const types = ['drone', 'fabJet', 'patriota'];
         const chosen = types[Math.floor(Math.random() * types.length)];
         this.obstacles.push({
@@ -780,7 +920,6 @@
       const yPos = 40 + Math.random() * (CANVAS_HEIGHT - 110);
 
       if (rand < 0.55) {
-        // Laranja
         this.collectibles.push({
           type: 'orange',
           x: CANVAS_WIDTH + 20,
@@ -791,7 +930,6 @@
           points: 100
         });
       } else if (rand < 0.80) {
-        // Chocolate Kopenhagen
         this.collectibles.push({
           type: 'chocolate',
           x: CANVAS_WIDTH + 20,
@@ -802,7 +940,6 @@
           points: 300
         });
       } else if (rand < 0.93) {
-        // Picanha & Cervejinha
         this.collectibles.push({
           type: 'picanha',
           x: CANVAS_WIDTH + 20,
@@ -813,7 +950,6 @@
           points: 400
         });
       } else if (rand < 0.98) {
-        // Passaporte Diplomático
         this.collectibles.push({
           type: 'passport',
           x: CANVAS_WIDTH + 20,
@@ -824,7 +960,6 @@
           points: 500
         });
       } else {
-        // JOIAS DAS ARÁBIAS (Super Rare Luxury Collectible!)
         this.collectibles.push({
           type: 'joias',
           x: CANVAS_WIDTH + 20,
@@ -837,14 +972,14 @@
       }
     }
 
-    // --- Stage 2 Lightning Telegraph System ---
+    // --- Stage 2 Lightning System ---
 
     spawnLightningHazard() {
       const targetX = 80 + Math.random() * (CANVAS_WIDTH - 200);
       this.lightningTelegraphs.push({
         x: targetX,
         w: 32,
-        timer: 45, // 0.75 seconds warning telegraph
+        timer: 45,
         activeStrike: false,
         strikeDuration: 14
       });
@@ -863,7 +998,6 @@
           }
         } else {
           bolt.strikeDuration--;
-          // Damage player if standing in lightning strike column!
           if (
             this.player.x + this.player.w > bolt.x &&
             this.player.x < bolt.x + bolt.w
@@ -878,7 +1012,7 @@
       }
     }
 
-    // --- Boss AI: Marechal Janones (Hardcore) ---
+    // --- Boss AI: Marechal Janones ---
 
     triggerJanonesBoss() {
       this.boss.active = true;
@@ -900,7 +1034,6 @@
     updateJanonesBoss() {
       if (!this.boss.active || this.boss.defeated) return;
 
-      // Enrage check at 50% HP
       if (this.boss.hp <= this.boss.maxHp / 2 && !this.boss.isEnraged) {
         this.boss.isEnraged = true;
         this.boss.vy = 4.2;
@@ -908,7 +1041,6 @@
         window.sound.playMegaphoneSiren();
       }
 
-      // Vertical sinusoidal movement
       this.boss.y += this.boss.vy;
       if (this.boss.y < 50) {
         this.boss.y = 50;
@@ -918,7 +1050,6 @@
         this.boss.vy = -Math.abs(this.boss.vy);
       }
 
-      // Shouts
       this.boss.shoutTimer++;
       if (this.boss.shoutTimer > 140) {
         this.boss.shoutTimer = 0;
@@ -926,13 +1057,11 @@
         window.sound.playMegaphoneSiren();
       }
 
-      // Boss Attacks (Faster in Enrage)
       this.boss.attackTimer++;
       const attackThreshold = this.boss.isEnraged ? 35 : 48;
       if (this.boss.attackTimer > attackThreshold) {
         this.boss.attackTimer = 0;
 
-        // Attack: Dual Tweet Storm
         window.sound.playTweetChime();
         this.enemyProjectiles.push({
           type: 'print',
@@ -953,7 +1082,6 @@
           h: 20
         });
 
-        // Danone Splash Bomb
         if (Math.random() < 0.6) {
           window.sound.playDanoneSplash();
           this.enemyProjectiles.push({
@@ -968,7 +1096,6 @@
         }
       }
 
-      // Player projectiles hitting Janones
       for (let j = this.projectiles.length - 1; j >= 0; j--) {
         const proj = this.projectiles[j];
         if (this.checkCollision(proj, this.boss)) {
@@ -984,7 +1111,6 @@
         }
       }
 
-      // Collision with player
       if (this.checkCollision(this.player, this.boss)) {
         if (this.player.isTurboActive || this.player.passportShieldTimer > 0) {
           this.boss.hp -= 4;
@@ -1009,7 +1135,6 @@
       this.score += 2500;
       this.showMemeToast("💥 JANONES DERROTADO: 'FUI DESMENTIDO NO TWITTER!'");
 
-      // Drops
       for (let i = 0; i < 10; i++) {
         this.collectibles.push({
           type: 'orange',
@@ -1041,7 +1166,7 @@
       window.sound.stopBGM();
       window.sound.playStageClear();
       this.score += 1500;
-      this.saveScoreToLeaderboard();
+      this.recordAndBroadcastCurrentScore();
     }
 
     // --- Main Game Update Loop ---
@@ -1062,7 +1187,6 @@
         return;
       }
 
-      // Takeoff Bubble countdown
       if (this.takeoffTimer > 0) {
         this.takeoffTimer--;
         if (this.takeoffTimer <= 0 && this.takeoffBubble) {
@@ -1070,22 +1194,18 @@
         }
       }
 
-      // Continuous Auto-Fire
       this.handleContinuousFire();
 
-      // 1. Advance distance
       const flightSpeed = this.player.isTurboActive ? 5.5 : 2.8;
       this.distanceInStage += flightSpeed;
       this.score += Math.round(flightSpeed * 0.7);
 
       const cfg = STAGE_CONFIG[this.currentStage - 1];
 
-      // Boss trigger for Stage 1
       if (this.currentStage === 1 && this.distanceInStage >= cfg.distanceToBoss && !this.boss.active && !this.boss.defeated) {
         this.triggerJanonesBoss();
       }
 
-      // Stage completion
       if (this.currentStage === 2 && this.distanceInStage >= cfg.totalDistance) {
         this.triggerStageClear();
         return;
@@ -1094,12 +1214,10 @@
         return;
       }
 
-      // 2. Parallax
       this.bgOffset1 -= flightSpeed * 0.3;
       this.bgOffset2 -= flightSpeed * 0.8;
       this.bgOffset3 -= flightSpeed * 1.8;
 
-      // 3. Stage 2 Thunderstorms & Lightning Hazards
       if (this.currentStage === 2) {
         this.lightningSpawnTimer++;
         if (this.lightningSpawnTimer > 180) {
@@ -1110,7 +1228,6 @@
         if (this.lightningFlash > 0) this.lightningFlash--;
       }
 
-      // 4. Player Movement (Keys + Virtual D-pad + Direct Touch Drag)
       let moveX = 0;
       let moveY = 0;
 
@@ -1138,7 +1255,6 @@
       this.player.x = Math.max(15, Math.min(CANVAS_WIDTH - this.player.w - 30, this.player.x));
       this.player.y = Math.max(30, Math.min(CANVAS_HEIGHT - this.player.h - 35, this.player.y));
 
-      // Timers & Turbo
       if (this.player.invulnerableTimer > 0) this.player.invulnerableTimer--;
       if (this.player.passportShieldTimer > 0) this.player.passportShieldTimer--;
 
@@ -1150,7 +1266,6 @@
         }
       }
 
-      // Exhaust flames
       this.player.flameAnim = (this.player.flameAnim + 1) % 6;
       if (Math.random() < 0.7) {
         this.createPuff(
@@ -1160,7 +1275,7 @@
         );
       }
 
-      // 5. Update Projectiles
+      // Update projectiles
       for (let i = this.projectiles.length - 1; i >= 0; i--) {
         const p = this.projectiles[i];
         p.x += p.vx;
@@ -1171,7 +1286,7 @@
         }
       }
 
-      // 6. Update Enemy Projectiles
+      // Update enemy projectiles
       for (let i = this.enemyProjectiles.length - 1; i >= 0; i--) {
         const ep = this.enemyProjectiles[i];
         ep.x += ep.vx;
@@ -1188,10 +1303,9 @@
         }
       }
 
-      // 7. Update Boss
       this.updateJanonesBoss();
 
-      // 8. Obstacles Spawning & Logic
+      // Obstacles
       this.spawnTimerObstacle++;
       const spawnInterval = Math.max(35, 90 - this.currentStage * 14);
       if (this.spawnTimerObstacle > spawnInterval) {
@@ -1207,7 +1321,6 @@
           obs.y = obs.baseY + Math.sin(Date.now() / 240 + obs.x * 0.05) * 28;
         }
 
-        // Shooting drone / FAB jet
         if (obs.shootTimer !== undefined) {
           obs.shootTimer--;
           if (obs.shootTimer <= 0) {
@@ -1224,7 +1337,6 @@
           }
         }
 
-        // Hit by player orange
         for (let j = this.projectiles.length - 1; j >= 0; j--) {
           const proj = this.projectiles[j];
           if (this.checkCollision(proj, obs)) {
@@ -1243,7 +1355,6 @@
           }
         }
 
-        // Collision with player
         if (obs && this.checkCollision(obs, this.player)) {
           if (this.player.isTurboActive || this.player.passportShieldTimer > 0) {
             window.sound.playHit();
@@ -1262,7 +1373,7 @@
         }
       }
 
-      // 9. Collectibles
+      // Collectibles
       this.spawnTimerCollectible++;
       if (this.spawnTimerCollectible > 80) {
         this.spawnTimerCollectible = 0;
@@ -1304,7 +1415,7 @@
           } else if (c.type === 'joias') {
             window.sound.playPassportImmunity();
             this.score += c.points;
-            this.player.turboMeter = 100; // Instantly fills turbo!
+            this.player.turboMeter = 100;
             this.showMemeToast("💎 JOIAS DAS ARÁBIAS! SUPER TURBO LIBERADO!");
             this.addFloatingText(c.x, c.y, "JOIAS SAUDITAS! +1000", "#ffd700");
           }
@@ -1318,7 +1429,6 @@
         }
       }
 
-      // 10. Meme Toasts
       this.memeTimer++;
       if (this.memeTimer > 380) {
         this.memeTimer = 0;
@@ -1326,7 +1436,6 @@
         this.showMemeToast(quote);
       }
 
-      // 11. Particles & Floating Texts
       for (let i = this.particles.length - 1; i >= 0; i--) {
         const pt = this.particles[i];
         pt.x += pt.vx;
@@ -1365,6 +1474,22 @@
       }
     }
 
+    recordAndBroadcastCurrentScore() {
+      const now = new Date();
+      const dateStr = `${now.getDate()}/${now.getMonth() + 1}`;
+      const entry = {
+        nick: this.playerNick,
+        score: this.score,
+        oranges: this.orangesCollected,
+        stage: this.currentStage,
+        date: dateStr,
+        isOnline: true
+      };
+
+      this.mergeIntoLeaderboard(entry, false);
+      this.broadcastScore(entry);
+    }
+
     triggerGameOver(reason) {
       this.currentState = STATE.GAMEOVER;
       this.isShooting = false;
@@ -1376,7 +1501,7 @@
         localStorage.setItem('flavio_fuga_highscore', this.highScore);
       }
 
-      this.saveScoreToLeaderboard();
+      this.recordAndBroadcastCurrentScore();
       this.showMemeToast("🚨 PRESO PELA PF! O VOO CAIU!");
     }
 
@@ -1393,7 +1518,7 @@
         localStorage.setItem('flavio_fuga_highscore', this.highScore);
       }
 
-      this.saveScoreToLeaderboard();
+      this.recordAndBroadcastCurrentScore();
       this.showMemeToast("🇺🇸 POUSO EM MAR-A-LAGO! BEM-VINDO, 01!");
     }
 
@@ -1484,7 +1609,6 @@
       this.ctx.fillStyle = grad;
       this.ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-      // Lightning flash in Stage 2
       if (this.lightningFlash > 0) {
         this.ctx.fillStyle = `rgba(255, 255, 255, ${this.lightningFlash * 0.18})`;
         this.ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -1559,16 +1683,13 @@
     }
 
     drawEntities() {
-      // 1. Stage 2 Lightning Telegraph Beams
       for (const bolt of this.lightningTelegraphs) {
         if (!bolt.activeStrike) {
-          // Yellow warning beam
           this.ctx.fillStyle = 'rgba(250, 204, 21, 0.35)';
           this.ctx.fillRect(bolt.x, 0, bolt.w, CANVAS_HEIGHT);
           this.ctx.strokeStyle = '#facc15';
           this.ctx.strokeRect(bolt.x, 0, bolt.w, CANVAS_HEIGHT);
         } else {
-          // Electric white strike bolt!
           this.ctx.fillStyle = '#ffffff';
           this.ctx.fillRect(bolt.x + 4, 0, bolt.w - 8, CANVAS_HEIGHT);
           this.ctx.fillStyle = 'rgba(56, 189, 248, 0.7)';
@@ -1576,7 +1697,6 @@
         }
       }
 
-      // 2. Collectibles
       for (const c of this.collectibles) {
         if (c.type === 'orange') {
           this.ctx.drawImage(window.sprites.getOrange(), c.x, c.y);
@@ -1591,7 +1711,6 @@
         }
       }
 
-      // 3. Obstacles
       for (const obs of this.obstacles) {
         if (obs.type === 'drone') {
           this.ctx.drawImage(window.sprites.getPfDrone(), obs.x, obs.y);
@@ -1606,7 +1725,6 @@
         }
       }
 
-      // 4. Boss: Marechal Janones
       if (this.boss.active && !this.boss.defeated) {
         this.ctx.drawImage(window.sprites.getMarechalJanones(), this.boss.x, this.boss.y);
 
@@ -1625,14 +1743,12 @@
         }
       }
 
-      // 5. Projectiles
       for (const p of this.projectiles) {
         this.ctx.save();
         this.ctx.translate(p.x + p.w / 2, p.y + p.h / 2);
         this.ctx.rotate(p.rot);
         this.ctx.drawImage(window.sprites.getOrange(), -p.w / 2, -p.h / 2, p.w, p.h);
 
-        // Golden glow if super turbo projectile
         if (p.isGolden) {
           this.ctx.strokeStyle = '#ffd700';
           this.ctx.lineWidth = 2;
@@ -1641,7 +1757,6 @@
         this.ctx.restore();
       }
 
-      // Enemy Projectiles
       for (const ep of this.enemyProjectiles) {
         if (ep.type === 'print') {
           this.ctx.drawImage(window.sprites.getPrintTweet(), ep.x, ep.y);
@@ -1655,7 +1770,6 @@
         }
       }
 
-      // 6. Player (Flávio's Luxury Jet)
       if (this.player.invulnerableTimer % 6 < 3) {
         this.ctx.save();
 
@@ -1671,7 +1785,6 @@
 
         this.ctx.drawImage(window.sprites.getFlavioJet(), this.player.x, this.player.y);
 
-        // Passport shield aura
         if (this.player.passportShieldTimer > 0) {
           this.ctx.strokeStyle = '#38bdf8';
           this.ctx.lineWidth = 3;
@@ -1688,7 +1801,6 @@
           this.ctx.stroke();
         }
 
-        // Turbo Golden Aura
         if (this.player.isTurboActive) {
           this.ctx.strokeStyle = '#facc15';
           this.ctx.lineWidth = 4;
@@ -1698,7 +1810,6 @@
         this.ctx.restore();
       }
 
-      // 7. Particles
       for (const pt of this.particles) {
         if (pt.isCash) {
           this.ctx.fillStyle = '#0284c7';
@@ -1711,7 +1822,6 @@
         }
       }
 
-      // 8. Floating Texts
       for (const ft of this.floatingTexts) {
         this.ctx.font = '10px "Press Start 2P", monospace';
         this.ctx.fillStyle = '#000000';
@@ -1730,7 +1840,6 @@
       this.ctx.lineWidth = 2;
       this.ctx.strokeRect(0, 0, CANVAS_WIDTH, 38);
 
-      // Score & Oranges
       this.ctx.font = '10px "Press Start 2P", monospace';
       this.ctx.fillStyle = '#facc15';
       this.ctx.fillText(`PTS:${this.score.toString().padStart(6, '0')}`, 16, 24);
@@ -1738,7 +1847,6 @@
       this.ctx.fillStyle = '#f97316';
       this.ctx.fillText(`🍊x${this.orangesCollected}`, 190, 24);
 
-      // Health Hearts
       this.ctx.fillStyle = '#e2e8f0';
       this.ctx.fillText("JATO:", 295, 24);
       for (let i = 0; i < MAX_HEALTH; i++) {
@@ -1751,7 +1859,6 @@
         }
       }
 
-      // Turbo Meter
       this.ctx.fillStyle = '#e2e8f0';
       this.ctx.fillText("RACHADINHA:", 440, 24);
 
@@ -1769,7 +1876,6 @@
         this.ctx.fillRect(572, 14, 106 * (this.player.turboMeter / 100), 12);
       }
 
-      // Stage & Progress
       const cfg = STAGE_CONFIG[this.currentStage - 1];
       const progress = Math.min(1, this.distanceInStage / cfg.totalDistance);
 
@@ -1789,7 +1895,6 @@
       this.ctx.fillStyle = '#ffffff';
       this.ctx.fillText(`FASE ${this.currentStage} ✈ ${Math.floor(progress * 100)}%`, barX + 60, barY + 12);
 
-      // Boss Health Bar
       if (this.boss.active && !this.boss.defeated) {
         const bossBarW = 340;
         const bossBarX = CANVAS_WIDTH / 2 - bossBarW / 2;
@@ -1814,7 +1919,7 @@
       }
     }
 
-    // --- Title Screen ---
+    // --- Title Screen with Live Leaderboard Ticker ---
 
     drawTitleScreen() {
       const grad = this.ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT);
@@ -1826,46 +1931,64 @@
 
       this.drawClouds(this.bgOffset1);
 
-      // Title Card Panel
       this.ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
       this.ctx.strokeStyle = '#ffd700';
       this.ctx.lineWidth = 4;
-      this.ctx.fillRect(80, 40, CANVAS_WIDTH - 160, CANVAS_HEIGHT - 80);
-      this.ctx.strokeRect(80, 40, CANVAS_WIDTH - 160, CANVAS_HEIGHT - 80);
+      this.ctx.fillRect(70, 30, CANVAS_WIDTH - 140, CANVAS_HEIGHT - 60);
+      this.ctx.strokeRect(70, 30, CANVAS_WIDTH - 140, CANVAS_HEIGHT - 60);
 
       this.ctx.font = '24px "Press Start 2P", monospace';
       this.ctx.fillStyle = '#ffd700';
       this.ctx.textAlign = 'center';
-      this.ctx.fillText("01: FUGA DE BRASÍLIA", CANVAS_WIDTH / 2, 90);
+      this.ctx.fillText("01: FUGA DE BRASÍLIA", CANVAS_WIDTH / 2, 80);
 
       this.ctx.font = '10px "Press Start 2P", monospace';
       this.ctx.fillStyle = '#00f2fe';
-      this.ctx.fillText('"ADEUS PÁTRIA E FAMÍLIA, FUI!"', CANVAS_WIDTH / 2, 116);
+      this.ctx.fillText('"ADEUS PÁTRIA E FAMÍLIA, FUI!"', CANVAS_WIDTH / 2, 106);
 
-      // Jet & Janones preview
       const jet = window.sprites.getFlavioJet();
-      this.ctx.drawImage(jet, CANVAS_WIDTH / 2 - 130, 140, 140, 58);
+      this.ctx.drawImage(jet, CANVAS_WIDTH / 2 - 130, 125, 140, 58);
 
       const janones = window.sprites.getMarechalJanones();
-      this.ctx.drawImage(janones, CANVAS_WIDTH / 2 + 50, 135, 80, 55);
+      this.ctx.drawImage(janones, CANVAS_WIDTH / 2 + 50, 120, 80, 55);
 
-      // Story & Controls
+      // Live Global Podium Preview Box
+      this.ctx.fillStyle = '#1e243d';
+      this.ctx.strokeStyle = '#38bdf8';
+      this.ctx.lineWidth = 1;
+      this.ctx.fillRect(CANVAS_WIDTH / 2 - 250, 205, 500, 75);
+      this.ctx.strokeRect(CANVAS_WIDTH / 2 - 250, 205, 500, 75);
+
+      this.ctx.font = '8px "Press Start 2P", monospace';
+      this.ctx.fillStyle = '#ffd700';
+      this.ctx.fillText("🌐 TOP 3 DO RANKING GLOBAL AO VIVO:", CANVAS_WIDTH / 2, 222);
+
+      const top3 = this.leaderboard.slice(0, 3);
+      top3.forEach((item, i) => {
+        const medal = ['🥇', '🥈', '🥉'][i];
+        this.ctx.fillStyle = i === 0 ? '#ffd700' : (i === 1 ? '#e2e8f0' : '#fb923c');
+        this.ctx.fillText(
+          `${medal} ${item.nick.padEnd(12, ' ')} : ${item.score.toLocaleString()} PTS (Fase ${item.stage})`,
+          CANVAS_WIDTH / 2,
+          240 + i * 14
+        );
+      });
+
+      // Controls Note
       this.ctx.font = '8px "Press Start 2P", monospace';
       this.ctx.fillStyle = '#e2e8f0';
-      this.ctx.fillText("NOVO: Segure ESPAÇO ou o botão p/ AUTO-DISPARO CONTÍNUO! 🍊", CANVAS_WIDTH / 2, 235);
-      this.ctx.fillText("Pilote: W/A/S/D ou Toque & Arraste no Celular! 📱", CANVAS_WIDTH / 2, 255);
-      this.ctx.fillText("Derrote o Marechal Janones e desvie dos raios no Atlântico!", CANVAS_WIDTH / 2, 275);
-      this.ctx.fillText("Coletáveis: Laranjas, Bombons, Picanha e as Joias das Arábias 💎", CANVAS_WIDTH / 2, 295);
+      this.ctx.fillText("Pilote com W/A/S/D ou Toque & Arraste no celular!", CANVAS_WIDTH / 2, 310);
+      this.ctx.fillText("Segure ESPAÇO ou o botão p/ AUTO-DISPARO CONTÍNUO 🍊", CANVAS_WIDTH / 2, 330);
 
       if (Math.floor(Date.now() / 400) % 2 === 0) {
         this.ctx.font = '13px "Press Start 2P", monospace';
         this.ctx.fillStyle = '#22c55e';
-        this.ctx.fillText("[ PRESSIONE ESPAÇO OU TOQUE P/ DECOLAR ]", CANVAS_WIDTH / 2, 350);
+        this.ctx.fillText("[ CLIQUE OU PRESSIONE ESPAÇO P/ ESCOLHER NOME ]", CANVAS_WIDTH / 2, 385);
       }
 
-      this.ctx.font = '9px "Press Start 2P", monospace';
+      this.ctx.font = '8.5px "Press Start 2P", monospace';
       this.ctx.fillStyle = '#94a3b8';
-      this.ctx.fillText(`PILOTO ATUAL: ${this.playerNick}  |  RECORDE: ${this.highScore} PTS`, CANVAS_WIDTH / 2, 395);
+      this.ctx.fillText(`PILOTO CONECTADO: ${this.playerNick || 'NÃO DEFINIDO'}`, CANVAS_WIDTH / 2, 425);
       this.ctx.textAlign = 'left';
     }
 
@@ -1964,7 +2087,6 @@
       const mansion = window.sprites.getMansion();
       this.ctx.drawImage(mansion, CANVAS_WIDTH / 2 - 230, CANVAS_HEIGHT - 250, 460, 200);
 
-      // Helipad
       this.ctx.fillStyle = '#15803d';
       this.ctx.fillRect(0, CANVAS_HEIGHT - 50, CANVAS_WIDTH, 50);
 
@@ -1979,14 +2101,11 @@
       this.ctx.textAlign = 'center';
       this.ctx.fillText("H", CANVAS_WIDTH / 2, CANVAS_HEIGHT - 30);
 
-      // Landed Jet
       this.ctx.drawImage(window.sprites.getFlavioJet(), CANVAS_WIDTH / 2 - 220, CANVAS_HEIGHT - 105, 130, 54);
 
-      // Trump Dancing
       const trumpY = CANVAS_HEIGHT - 118 + Math.sin(Date.now() / 150) * 4;
       this.ctx.drawImage(window.sprites.getTrump(), CANVAS_WIDTH / 2 + 70, trumpY, 65, 75);
 
-      // Banner Title
       this.ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
       this.ctx.strokeStyle = '#facc15';
       this.ctx.lineWidth = 3;
@@ -2001,7 +2120,6 @@
       this.ctx.fillStyle = '#38bdf8';
       this.ctx.fillText("MISSÃO CUMPRIDA: O VOO MAIS TREMENDO DA HISTÓRIA!", CANVAS_WIDTH / 2, 65);
 
-      // Dialogue Bubble
       const bubbleX = CANVAS_WIDTH / 2 - 270;
       const bubbleY = 95;
       const bubbleW = 540;
@@ -2038,7 +2156,6 @@
         this.ctx.fillText(`PILOTO ${this.playerNick}: ${this.score} PTS | ${this.orangesCollected} LARANJAS`, bubbleX + 15, bubbleY + 65);
       }
 
-      // Confetti
       for (const pt of this.particles) {
         this.ctx.fillStyle = pt.color;
         this.ctx.fillRect(pt.x, pt.y, pt.size, pt.size);
