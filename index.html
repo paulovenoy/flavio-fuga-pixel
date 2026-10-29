@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>01: Fuga de Brasília - Missão Mar-a-Lago (Edição Turbo & Memes)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Arcade Cabinet Outer Frame -->
+  <div class="arcade-container" id="arcade-container">
+    <!-- Header Marquee -->
+    <header class="arcade-marquee">
+      <div class="marquee-lights"></div>
+      
+      <div class="marquee-title">
+        <div class="pill-group">
+          <span class="sub-pill">🇧🇷 EDIÇÃO OFICIAL PRO &bull; 3 FASES 🇺🇸</span>
+          <span class="sub-pill pill-boss" id="boss-pill">BOSS: MARECHAL JANONES</span>
+          <span class="sub-pill pill-nick" id="btn-change-nick" title="Clique para mudar seu apelido">
+            PILOTO: <strong id="display-nick">PILOTO_01</strong> ✏️
+          </span>
+        </div>
+        <h1>01: FUGA DE BRASÍLIA</h1>
+        <p class="subtitle">MISSÃO MAR-A-LAGO &bull; "ADEUS PÁTRIA E FAMÍLIA, FUI!"</p>
+      </div>
+
+      <div class="marquee-actions">
+        <button class="arcade-btn btn-ranking" id="btn-open-ranking" title="Ver Hall da Fama / Ranking">
+          <span>🏆 RANKING</span>
+        </button>
+        <button class="arcade-btn" id="btn-toggle-sound" title="Ligar/Desligar Som">
+          <span id="sound-icon">🔊 SOM: ON</span>
+        </button>
+        <button class="arcade-btn btn-fullscreen" id="btn-fullscreen" title="Tela Cheia (Tecla F)">
+          <span>⛶ TELA CHEIA</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Game Canvas Frame with CRT Scanline Effect -->
+    <div class="screen-wrapper" id="screen-wrapper">
+      <canvas id="gameCanvas" width="960" height="540"></canvas>
+      <div class="crt-overlay" id="crt-overlay"></div>
+      
+      <!-- Live Meme Alert Toast -->
+      <div id="meme-toast" class="meme-toast hidden"></div>
+
+      <!-- Takeoff Comic Speech Bubble -->
+      <div id="takeoff-bubble" class="takeoff-bubble hidden">
+        <div class="bubble-content">
+          <span class="bubble-quote">"ADEUS PÁTRIA E FAMÍLIA, FUI!" 🇧🇷💨</span>
+          <span class="bubble-sub">AeroKopenhagen decolando de Brasília com destino a Mar-a-Lago!</span>
+        </div>
+      </div>
+
+      <!-- Touch Controls (Ergonomic for Mobile) -->
+      <div id="touch-controls" class="touch-controls">
+        <div class="touch-dpad">
+          <button id="touch-up" class="touch-btn">▲</button>
+          <div class="touch-dpad-row">
+            <button id="touch-left" class="touch-btn">◀</button>
+            <button id="touch-down" class="touch-btn">▼</button>
+            <button id="touch-right" class="touch-btn">▶</button>
+          </div>
+        </div>
+        <div class="touch-actions">
+          <button id="touch-shoot" class="touch-action-btn btn-orange">🍊 AUTO-TIRO</button>
+          <button id="touch-boost" class="touch-action-btn btn-boost">⚡ TURBO</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Arcade Bezel / Dashboard -->
+    <footer class="arcade-bezel">
+      <div class="dashboard-panel">
+        <div class="key-guide">
+          <span class="badge">W/A/S/D ou SETAS</span> Pilotar (ou Toque & Arraste no Mobile) &bull;
+          <span class="badge">SEGURE ESPAÇO</span> 🍊 Disparo Contínuo de Laranjas &bull;
+          <span class="badge">SHIFT</span> Super Rachadinha Turbo 🚀 &bull;
+          <span class="badge">F</span> Tela Cheia &bull;
+          <span class="badge">R</span> Ver Ranking
+        </div>
+        <div class="credits-tag">
+          Online Leaderboard &bull; 16-Bit Realism &bull; Edição Memes BR
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Nickname Modal -->
+  <div id="modal-nickname" class="arcade-modal hidden">
+    <div class="modal-box">
+      <h2>IDENTIFICAÇÃO DO PILOTO</h2>
+      <p>Digite seu apelido para o Ranking Oficial:</p>
+      <input type="text" id="input-nick" maxlength="12" placeholder="EX: MITO_01" autocomplete="off" />
+      <div class="modal-buttons">
+        <button id="btn-save-nick" class="modal-btn btn-confirm">SALVAR APELIDO</button>
+        <button id="btn-close-nick" class="modal-btn btn-cancel">CANCELAR</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ranking / Leaderboard Modal -->
+  <div id="modal-ranking" class="arcade-modal hidden">
+    <div class="modal-box modal-ranking-box">
+      <div class="modal-header">
+        <h2>🏆 HALL DA FAMA & RANKING 🏆</h2>
+        <button id="btn-close-ranking" class="modal-close">&times;</button>
+      </div>
+      <p class="ranking-sub">OS MAIORES VÔOS DA HISTÓRIA DE BRASÍLIA A MAR-A-LAGO</p>
+
+      <div class="ranking-table-wrapper">
+        <table class="ranking-table">
+          <thead>
+            <tr>
+              <th>POS</th>
+              <th>PILOTO</th>
+              <th>PONTUAÇÃO</th>
+              <th>LARANJAS</th>
+              <th>FASE</th>
+            </tr>
+          </thead>
+          <tbody id="ranking-tbody">
+            <!-- Dynamically populated -->
+          </tbody>
+        </table>
+      </div>
+
+      <div class="modal-footer-ranking">
+        <button id="btn-share-score" class="modal-btn btn-share">📲 COMPARTILHAR MEU RECORDE</button>
+        <button id="btn-back-game" class="modal-btn btn-confirm">VOLTAR AO JOGO</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/audio.js"></script>
+  <script src="js/sprites.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
