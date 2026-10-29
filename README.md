@@ -1,26 +1,30 @@
-# 🕹️ 01: Fuga de Brasília — Missão Mar-a-Lago (Edição Deluxe)
+# 🕹️ 01: Fuga de Brasília — Missão Mar-a-Lago (Edição Turbo & Memes)
 
 Um jogo arcade retrô pixel art temático, recheado de memes da política e cultura pop brasileira e internacional.
 
+> 🌐 **JOGUE ONLINE AGORA MESMO NO SEU NAVEGADOR OU CELULAR:**  
+> 👉 **[https://paulovenoy.github.io/flavio-fuga-pixel/](https://paulovenoy.github.io/flavio-fuga-pixel/)**
+
 ---
 
-## 🚀 Novidades da Edição Deluxe:
-1. **3 Fases Estruturadas & Batalha de Chefe (Boss)**:
-   - **Fase 1: O Cerco de Brasília & Boss Marechal Janones**:
-     - Desvie dos drones da PF, togas e tornozeleiras voadoras até enfrentar o **Marechal Janones** voando em seu palanque tático militar!
-     - Janones dispara "Prints Vazados", tweets com "BOMBA!", potes voadores de Danone e ondas sonoras de megafone!
-   - **Fase 2: Travessia do Atlântico & Tempestade Tropical**:
-     - Voo noturno sobre o oceano com tempestade de relâmpagos, caças da FAB tentando interceptar o jatinho e o "Patriota do Caminhão" supersônico!
-   - **Fase 3: Espaço Aéreo da Flórida & Pouso em Mar-a-Lago**:
-     - Céu Synthwave com palmeiras e arranha-céus até a aterrissagem final no heliponto VIP nos braços de Donald Trump!
-2. **Pixel Art 16-Bit Neo-Retro ("Mais Realista")**:
-   - Sprites com múltiplas camadas de sombreamento, brilho metálico, pós-combustão animada na turbina e design detalhado dos personagens.
-3. **Tela Expandida no PC**:
-   - Resolução nativa widescreen 960x540 com suporte a até 1340px no monitor e botão de **⛶ TELA CHEIA** (ou tecla `F`).
-4. **Otimização Total para Celular e Telas Touch**:
-   - **Toque & Arraste Direto**: basta tocar e arrastar o dedo na tela para pilotar o jatinho com controle 1:1 super fluido!
-   - D-Pad e botões de ação ergonômicos nos cantos com áreas de toque ampliadas (mínimo 50px).
-   - Bloqueio de gestos acidentais do navegador (`touch-action: none`).
+## 🚀 Novidades desta Versão:
+1. **🍊 Auto-Disparo Contínuo de Laranjas**:
+   - Basta **segurar a tecla `Espaço`** ou o botão **`🍊 AUTO-TIRO`** no celular para soltar uma metralhadora contínua de laranjas! No modo Turbo, o disparo se torna duplo e dourado!
+2. **🏆 Sistema de Apelido & Ranking Oficial (Hall da Fama)**:
+   - Escolha seu apelido de piloto (Ex: `MITO_01`, `01_FLAVIO`).
+   - Tabela de classificação com Top 10 High Scores, medalhas (🥇, 🥈, 🥉), contagem de laranjas e fase alcançada.
+   - Botão para **Compartilhar Recorde** direto no WhatsApp ou X/Twitter!
+3. **💬 "ADEUS PÁTRIA E FAMÍLIA, FUI!"**:
+   - Balão de fala épico de história na decolagem do Jatinho 01 em Brasília, com notas de R$ 100 voando pela janela e o grito de despedida!
+4. **🔥 Fases Mais Difíceis & Desafiadoras**:
+   - **Fase 1**: Drones com tiros duplos e togas rápidas; **Marechal Janones** com 40 de HP e modo de fúria (Enraged) soltando tempestades de tweets e potes de Danone!
+   - **Fase 2**: Relâmpagos verticais no oceano com feixes de alerta amarelos telegrafados (precisa desviar rápido!) e caças supersônicos da FAB.
+   - **Fase 3**: Espaço aéreo tenso em Miami até o pouso triunfal em Mar-a-Lago com Donald Trump!
+5. **💎 Mais Memes & Coletáveis Lendários**:
+   - **Joias das Arábias** (diamantes e rubis que concedem 1000 pontos e enchem a barra de Turbo na hora!).
+   - **Picanha & Cervejinha** (+400 pts).
+   - **Patriota do Caminhão** em velocidade máxima.
+   - Tremores de tela dinâmicos (**Screen Shake**) e impactos realistas.
 
 ---
 
@@ -28,13 +32,17 @@ Um jogo arcade retrô pixel art temático, recheado de memes da política e cult
 
 | Ação | Teclado | Mobile / Touch |
 | :--- | :--- | :--- |
-| **Pilotar Jatinho** | `W`, `A`, `S`, `D` ou `Setas` | Toque & Arraste na tela OU D-Pad |
-| **Atirar Laranjas** 🍊 | `Espaço` | Botão `🍊 TIRO` |
+| **Pilotar Jatinho** | `W`, `A`, `S`, `D` ou `Setas` | Toque & Arraste no Celular OU D-Pad |
+| **Disparo Contínuo** 🍊 | **Segurar** `Espaço` | **Segurar** `🍊 AUTO-TIRO` |
 | **Super Rachadinha Turbo** ⚡ | `Shift` ou `B` | Botão `⚡ TURBO` |
+| **Ver Ranking** 🏆 | Tecla `R` | Botão `🏆 RANKING` no topo |
+| **Mudar Apelido** ✏️ | Clique no seu piloto | Clique no badge do Piloto |
 | **Tela Cheia** ⛶ | Tecla `F` | Botão `⛶ TELA CHEIA` |
-| **Ligar/Desligar Som** | Tecla `M` | Botão no topo |
+| **Som** 🔊 | Tecla `M` | Botão `🔊 SOM` |
 
 ---
 
-## 📁 Como Jogar
-Abra o arquivo [index.html](file:///C:/Users/paulovenoy/.gemini/antigravity/scratch/flavio-fuga-pixel/index.html) em qualquer navegador ou clique duas vezes no atalho [jogar.bat](file:///C:/Users/paulovenoy/.gemini/antigravity/scratch/flavio-fuga-pixel/jogar.bat).
+## 🔗 Links Oficiais
+- 🎮 **Link do Jogo Online (GitHub Pages)**: [https://paulovenoy.github.io/flavio-fuga-pixel/](https://paulovenoy.github.io/flavio-fuga-pixel/)
+- 💻 **Repositório no GitHub**: [https://github.com/paulovenoy/flavio-fuga-pixel](https://github.com/paulovenoy/flavio-fuga-pixel)
+- 📁 **Pasta Local**: `C:\Users\paulovenoy\.gemini\antigravity\scratch\flavio-fuga-pixel`
